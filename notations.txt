@@ -1,0 +1,38 @@
+novo pipeline
+
+1. usuario da como entrada um audio (dentre 10 a 15 segundos no mundo ideal)
+2. o audio eh preprocessado (limpo, normalizado e tudo mais), definir parametros depois
+3. para o tts, serao usados tres embeddings:
+    - text embedding/content embedding/whatever: refere-se ao texto extraido do audio
+    do cara (apesar de num mundo ideal ter um texto de referencia pro cara falar, nem
+    sempre é garantido que ele vai falar 100% identico e, no fim, fonemas podem se 
+    perder. o ideal é que seja feito um reconhecimento do que eh verdadeiramente dito
+    no audio de entrada [ASR]).
+        - alem disso, uma etapa adicional inclui a traducao do texto detectado para
+        fonemas (phonemizer)
+    - speaker embedding: nesse aq sao extraidas as caracteristicas da voz do camarada.
+    o encoder pensado até agora é o ECAPA, mas equivalentes podem ser levantados a 
+    depender da performance lol
+    - style embedding: vulgo entonacao, emocao, o molho. para isso, ha dois passos
+        - o tts padrao (VITS multispeaker ate o momento) sera refinado em treino
+        com varias faixas de audio em pt br (idealmente de varias pessoas diferentes
+        e representando emocoes e contextos diferentes). o dataset montado tera o padrao 
+        [ dataset > audios wav nomeados de 1 a n > arquivo csv com a transcricao de
+        cada arquivo nomeado c base na chave do nome ]. existem datasets de audio em
+        pt br que a gente pode tentar aproveitar 
+        (consultar os links aqui: 
+        https://github.com/falabrasil/speech-datasets
+        https://huggingface.co/datasets/firstpixel/pt-br_char
+        https://github.com/nilc-nlp/CORAA
+        ) 
+        o tts ent sera adaptado ao dataset (prosody) e na teoria ja ira gerar audio 
+        sem ser robotico, ok
+        - tags de emocao que representam features de audio como pitch speed e whatever.
+        procurar por emotion vector arithmetic
+        https://www.isca-archive.org/interspeech_2024/kalyan24_interspeech.pdf
+    ai esses embeddings serao passados ao tts e de gloria a deus pra funcionar
+4. a teoria ent eh que pra cada usuario que de um audio seja retornado um embedding
+(speaker embedding) e esse q seja usado pro modelo proprio dele, em vez de gerar modelos
+pra cada usuario (tambem eh uma possibilidade mas prov pra treinar vai demorar pra 
+caramba ent n pensemos nisso agora). os style embeddings sao publicos pra todos. e os
+text embeddings se perdem dps do processo pq so sao usados localmente pra aquela task
