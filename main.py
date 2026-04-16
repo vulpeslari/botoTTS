@@ -1,24 +1,42 @@
-from boto_engine import BotoTTS
-from audio_processing import audio_process, split_audio, convert
+from services.audio_service import AudioService
+from services.embedding_service import EmbeddingService
+from services.tts_service import TTSService
+import os
 
-boto = BotoTTS()
-path = "marina_sena.mp3"
-speaker = path[:-4]
+def generate_speech(audio_input, text, speaker):
+    audio_service = AudioService()
+    tts_service = TTSService()
+    
+    embedding_service = EmbeddingService(
+        tts_service.tts.synthesizer.tts_model
+    )
 
-audio, sr = convert(path)
+    # 1. Pré-processamento de áudio
+    chunks = audio_service.preprocess(audio_input)
 
-chunks = split_audio(audio, sr)
+    # 2. Recupera ou cria embedding do speaker
+    embedding = embedding_service.get_or_create(speaker, chunks)
 
-processed_chunks = []
+    # 3. Inferência do modelo TTS
+    out = tts_service.infer(text, embedding)
+    wav = out["wav"] if isinstance(out, dict) else out
 
-for chunk in chunks:
-    processed = audio_process(chunk, sr)
+    # 4. Pós-processamento 
+    wav = audio_service.postprocess(wav)
 
-    if processed is not None:
-        processed_chunks.append(processed)
+    os.makedirs("voices", exist_ok=True)
+    output_path = f"voices/{speaker}.wav"
+    tts_service.tts.synthesizer.save_wav(wav, output_path)
 
-boto.generate(
-    audio=processed_chunks,
-    text="geladeira cachorro feliz triste cama música",
-    speaker=speaker,
-)
+    return output_path
+
+
+if __name__ == "__main__":
+    path = "larissa.aac"
+    speaker = "larissa"
+
+    output = generate_speech(
+        audio_input=path,
+        text="geladeira cachorro feliz triste cama música",
+        speaker=speaker,
+    )
