@@ -1,0 +1,43 @@
+@startuml class
+
+class Main {
++generate_speech(audio_input, text, speaker)
+}
+
+class AudioService {
++preprocess(audio_input)
++postprocess(wav)
+}
+
+class EmbeddingService {
+-tts_model
+-cache
+-asr_cache
+-asr
+
++get_or_create(speaker, audio_chunks)
++create_embedding(audio_chunks)
++score_chunk(chunk)
++fast_score(chunk)
+}
+
+class TTSService {
+-tts
+
++infer(text, embedding)
+}
+
+class audio_utils {
++convert(audio_input)
++split_audio(audio, sr)
++audio_process(audio, sr)
++audio_process_output(audio, sr)
+}
+
+Main --> AudioService
+Main --> EmbeddingService
+Main --> TTSService
+
+AudioService --> audio_utils
+
+@enduml

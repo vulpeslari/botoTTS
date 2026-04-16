@@ -1,0 +1,86 @@
+@startuml sequence
+
+actor User
+
+participant "main" as Main
+participant "AudioService" as ASvc
+participant "EmbeddingService" as ESvc
+participant "TTSService" as TTS
+participant "XTTS Model" as XTTS
+participant "DataBase" as DB
+
+User -> Main: generate_speech(audio, text, speaker)
+
+== Pré-processamento ==
+Main -> ASvc: preprocess(audio_input)
+
+ASvc -> ASvc: convert()
+
+note right
+Aúdios devem ser convertidos para a frequência 
+ideal ao desempenho do modelo
+end note
+
+ASvc -> ASvc: split_audio()
+
+loop para cada chunk
+ASvc -> ASvc: audio_process()
+end
+
+ASvc --> Main: processed_chunks
+
+== Embeddings ==
+Main -> ESvc: get_or_create(speaker, chunks)
+
+ESvc -> DB: buscar embedding
+DB --> ESvc: embedding
+
+alt embedding não existe
+loop chunks
+ESvc -> ESvc: fast_score(chunks)
+
+note right
+Cada chunk passa por uma avaliação rápida
+de qualidade. Apenas os melhores são selecionados.
+end note
+
+ESvc -> ESvc: score_chunk()
+
+note right
+Os melhores chunks são avaliados considerando:
+- Aúdio dito (transcrição ASR)
+- Energia
+- Pitch
+Chunks aberrantes são descartados.
+end note
+end
+
+ESvc -> XTTS: get_conditioning_latents()
+XTTS --> ESvc: embeddings
+
+ESvc -> DB: salvar embeddings
+
+end
+
+ESvc --> Main: embedding
+
+== Inferência ==
+Main -> TTS: infer(text, embedding)
+
+TTS -> XTTS: inference()
+
+note right
+Aúdio gerado na voz do speaker.
+end note
+
+XTTS --> TTS: wav
+
+TTS --> Main: wav
+
+== Pós-processamento ==
+Main -> ASvc: postprocess(wav)
+ASvc --> Main: áudio
+
+Main --> User: áudio final
+
+@enduml

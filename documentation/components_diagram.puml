@@ -1,0 +1,43 @@
+@startuml components
+
+package "Application" {
+[Main]
+}
+
+package "Services" {
+[AudioService]
+[EmbeddingService]
+[TTSService]
+}
+
+package "AI Models" {
+[Whisper ASR]
+[XTTS Model]
+}
+
+package "Database" {
+[Embeddings]
+}
+
+package "Utils" {
+[AudioUtils]
+}
+
+' Orquestração
+[Main] --> [AudioService]
+[Main] --> [EmbeddingService]
+[Main] --> [TTSService]
+
+' Audio
+[AudioService] --> [AudioUtils]
+
+' Embedding
+[EmbeddingService] --> [Whisper ASR]
+[EmbeddingService] --> [XTTS Model]
+[EmbeddingService] --> [Embeddings]
+
+' TTS
+[TTSService] --> [XTTS Model]
+
+
+@enduml
