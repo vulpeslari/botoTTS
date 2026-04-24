@@ -3,6 +3,28 @@ from services.embedding_service import EmbeddingService
 from services.tts_service import TTSService
 import os
 
+# def get_audio_files(folder):
+#     return [
+#         os.path.join(folder, f)
+#         for f in os.listdir(folder)
+#         if f.endswith((".wav", ".mp3", ".aac", ".ogg"))
+#     ]
+    
+def get_audio_files(folder, selected_names=None):
+    files = [
+        os.path.join(folder, f)
+        for f in os.listdir(folder)
+        if f.endswith((".wav", ".mp3", ".aac", ".ogg"))
+    ]
+
+    if selected_names:
+        files = [
+            f for f in files
+            if os.path.basename(f) in selected_names
+        ]
+
+    return files
+
 def generate_speech(audio_input, text, speaker):
     audio_service = AudioService()
     tts_service = TTSService()
@@ -11,17 +33,17 @@ def generate_speech(audio_input, text, speaker):
         tts_service.tts.synthesizer.tts_model
     )
 
-    # 1. Pré-processamento de áudio
-    chunks = audio_service.preprocess(audio_input)
+    if isinstance(audio_input, list):
+        audio, sr = audio_service.concatenate(audio_input)
+        chunks = audio_service.preprocess((audio, sr)) 
+    else:
+        chunks = audio_service.preprocess(audio_input)
 
-    # 2. Recupera ou cria embedding do speaker
     embedding = embedding_service.get_or_create(speaker, chunks)
 
-    # 3. Inferência do modelo TTS
     out = tts_service.infer(text, embedding)
     wav = out["wav"] if isinstance(out, dict) else out
 
-    # 4. Pós-processamento 
     wav = audio_service.postprocess(wav)
 
     os.makedirs("voices", exist_ok=True)
@@ -32,11 +54,20 @@ def generate_speech(audio_input, text, speaker):
 
 
 if __name__ == "__main__":
-    path = "larissa.aac"
-    speaker = "larissa"
+    folder = "teste_larissa"
+    speaker = "larissa_all"
+    
+    selected = ["phrase_1_2.ogg",
+                "phrase_2_2.ogg",
+                "phrase_3_2.ogg",
+                "phrase_4_2.ogg",
+                "phrase_5_2.ogg"]
+    
+    audios = get_audio_files(folder, selected)
+    audios.append("larissa.aac")
 
     output = generate_speech(
-        audio_input=path,
+        audio_input=audios,
         text="geladeira cachorro feliz triste cama música",
         speaker=speaker,
     )

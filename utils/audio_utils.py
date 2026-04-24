@@ -57,27 +57,25 @@ def audio_process(audio, sr):
     - highpass
     - redução de ruído
     - bandpass
-    - trim silêncio
-    - normalização
     """
     audio, sr = convert((audio, sr))
 
     audio = highpass(audio, sr)
 
-    audio = nr.reduce_noise(
-        y=audio,
-        sr=sr,
-        stationary=False,
-        prop_decrease=0.7
-    )
+    # audio = nr.reduce_noise(
+    #     y=audio,
+    #     sr=sr,
+    #     stationary=False,
+    #     prop_decrease=0.7
+    # )
 
-    audio = bandpass(audio, sr)
+    # audio = bandpass(audio, sr)
 
     # Remove silêncio
-    audio, _ = librosa.effects.trim(audio, top_db=TOP_DB)
+    # audio, _ = librosa.effects.trim(audio, top_db=TOP_DB)
 
-    # Normaliza amplitude
-    audio = librosa.util.normalize(audio)
+    # # Normaliza amplitude
+    # audio = librosa.util.normalize(audio)
 
     return audio
 
@@ -96,9 +94,10 @@ def audio_process_output(audio, sr):
     meter = pyln.Meter(sr)
     loudness = meter.integrated_loudness(audio)
 
-    # Evita erro com valores inválidos
     if np.isfinite(loudness):
         audio = pyln.normalize.loudness(audio, loudness, -16.0)
+        
+    audio = np.clip(audio, -1.0, 1.0)
 
     return audio
 
@@ -109,7 +108,6 @@ def split_audio(audio, sr, chunk_duration=5, overlap=1):
     Estratégia:
     - detecta regiões com fala
     - divide em janelas com overlap
-    - descarta chunks muito curtos
     """
     intervals = librosa.effects.split(audio, top_db=TOP_DB)
 
@@ -124,8 +122,28 @@ def split_audio(audio, sr, chunk_duration=5, overlap=1):
         for i in range(0, len(segment), step):
             chunk = segment[i:i + chunk_size]
 
-            # descarta chunks pequenos
-            if len(chunk) >= chunk_size * 0.9:
+            if len(chunk) >= chunk_size * 0.5:
                 chunks.append(chunk)
 
+    if len(chunks) == 0:
+        chunks = [audio]
+
     return chunks
+
+
+def concatenate_audios(audio_paths):
+    audios = []
+    silence = np.zeros(int(0.2 * TARGET_SR))
+
+    for path in audio_paths:
+        audio, sr = convert(path)
+
+        if sr != TARGET_SR:
+            raise ValueError(f"Sample rate diferente em {path}")
+
+        audios.append(audio)
+        audios.append(silence)
+
+    full_audio = np.concatenate(audios)
+
+    return full_audio, TARGET_SR

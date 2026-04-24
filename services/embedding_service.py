@@ -37,41 +37,42 @@ class EmbeddingService:
         - energia
         - pitch
         """
-
-        # descarta chunks muito pequenos
-        if len(chunk) < 16000:
-            return 0
-
-        key = hash(chunk.tobytes())
-
-        # cache ASR
-        if key in self.asr_cache:
-            text = self.asr_cache[key]
-        else:
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp:
-                sf.write(tmp.name, chunk, TARGET_SR)
-
-                try:
-                    result = self.asr.transcribe(tmp.name, fp16=False)
-                    text = result.get("text", "").strip()
-                    self.asr_cache[key] = text
-                except:
-                    return 0
-
-        # descarta fala ruim (muito curta)
-        if len(text) < 5:
-            return 0
+        if len(chunk) < TARGET_SR * 1:  # menos de 1s
+            return 0.01
 
         energy = np.mean(np.abs(chunk))
         std = np.std(chunk)
 
-        if std < 0.01 or energy < 0.05:
-            return 0
+        # energia
+        if energy < 0.005:
+            return 0.01
 
+        # pitch 
         pitches, _ = librosa.piptrack(y=chunk, sr=TARGET_SR)
         pitch_var = np.std(pitches[pitches > 0]) if np.any(pitches > 0) else 0
 
-        return (energy * std * 10) + (pitch_var * 0.5) + (len(text) * 2)
+        # ASR
+        text_score = 1
+
+        try:
+            key = hash(chunk.tobytes())
+
+            if key in self.asr_cache:
+                text = self.asr_cache[key]
+            else:
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp:
+                    sf.write(tmp.name, chunk, TARGET_SR)
+                    result = self.asr.transcribe(tmp.name, fp16=False)
+                    text = result.get("text", "").strip()
+                    self.asr_cache[key] = text
+
+            text_score = max(len(text), 1)
+
+        except:
+            text_score = 1  # fallback
+
+        return (energy * 5) + (std * 3) + (pitch_var * 0.3) + (text_score * 0.5)
+
 
     def get_or_create(self, speaker, audio_chunks):
         """
@@ -105,23 +106,23 @@ class EmbeddingService:
         2. Extrai embeddings individuais 
         3. Faz agregação (mediana)
         """
+        
+        if len(audio_chunks) == 0:
+            raise ValueError("Nenhum chunk recebido")
 
         # PRÉ-SELEÇÃO 
-        # Usa um score barato  para filtrar rapidamente
-        # Evita rodar ASR em todos os chunks 
-        scored = sorted(
+        prev = sorted(
             [(self.fast_score(c), c) for c in audio_chunks],
             reverse=True
-        )[:15]  # pega top 15 candidatos
+        )[:20]  # pega 20 melhores chunks
 
 
-        # SELEÇÃO REFINADA
+        # SELEÇÃO FINAL
         scored = sorted(
-            [(self.score_chunk(c), c) for _, c in scored],
+            [(self.score_chunk(c), c) for _, c in prev],
             reverse=True
-        )[:8]  # pega top 8 melhores chunks
-
-
+        )
+        
         gpt_list = []        # contexto de linguagem 
         speaker_list = []    # identidade da voz
 
@@ -141,9 +142,6 @@ class EmbeddingService:
                 speaker_list.append(speaker)
 
         # AGREGAÇÃO
-        # Usa MEDIANA ao invés de média:
-        # - mais resistente a outliers
-        # - evita chunks ruins influenciarem o resultado final
         return {
             "gpt_cond_latent": torch.median(
                 torch.stack(gpt_list), dim=0
