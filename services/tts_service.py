@@ -6,7 +6,7 @@ class TTSService:
         Carrega modelo XTTS (GPU)
         """
         self.tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2")
-        self.tts.to("cuda")
+        # self.tts.to("cuda")
 
     def infer(self, text, embedding):
         """

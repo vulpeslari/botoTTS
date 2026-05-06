@@ -76,26 +76,38 @@ class EmbeddingService:
 
     def get_or_create(self, speaker, audio_chunks):
         """
-        Busca embedding:
-        1. cache
-        2. disco
-        3. cria novo
+        Gera embedding de speaker a partir de múltiplos chunks de áudio.
+
+        Pipeline:
+        1. Seleciona melhores chunks 
+        2. Extrai embeddings individuais 
+        3. Faz agregação (mediana)
         """
+        
         if speaker in self.cache:
             return self.cache[speaker]
 
-        path = f"embeddings/{speaker}.pt"
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        EMBED_DIR = os.path.join(BASE_DIR, "embeddings")
 
+        os.makedirs(EMBED_DIR, exist_ok=True)
+
+        path = os.path.join(EMBED_DIR, f"{speaker}.pt")
+        
         if os.path.exists(path):
             data = torch.load(path)
             self.cache[speaker] = data
             return data
+
+        if audio_chunks is None:
+            raise ValueError(f"Embedding '{speaker}' não existe e nenhum áudio foi enviado")
 
         embedding = self.create_embedding(audio_chunks)
         torch.save(embedding, path)
 
         self.cache[speaker] = embedding
         return embedding
+
 
     def create_embedding(self, audio_chunks):
         """

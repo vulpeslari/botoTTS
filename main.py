@@ -25,7 +25,7 @@ def get_audio_files(folder, selected_names=None):
 
     return files
 
-def generate_speech(audio_input, text, speaker):
+def generate_speech(text, speaker, audio_input=None):
     audio_service = AudioService()
     tts_service = TTSService()
     
@@ -33,9 +33,13 @@ def generate_speech(audio_input, text, speaker):
         tts_service.tts.synthesizer.tts_model
     )
 
-    if isinstance(audio_input, list):
+    if audio_input is None:
+        chunks = None
+
+    elif isinstance(audio_input, list):
         audio, sr = audio_service.concatenate(audio_input)
         chunks = audio_service.preprocess((audio, sr)) 
+
     else:
         chunks = audio_service.preprocess(audio_input)
 
@@ -52,22 +56,21 @@ def generate_speech(audio_input, text, speaker):
 
     return output_path
 
-
 if __name__ == "__main__":
     folder = "teste_larissa"
-    speaker = "larissa_all"
+    speaker = "larissa"
     
-    selected = ["phrase_1_2.ogg",
-                "phrase_2_2.ogg",
-                "phrase_3_2.ogg",
-                "phrase_4_2.ogg",
-                "phrase_5_2.ogg"]
+    # selected = ["phrase_1_2.ogg",
+    #             "phrase_2_2.ogg",
+    #             "phrase_3_2.ogg",
+    #             "phrase_4_2.ogg",
+    #             "phrase_5_2.ogg"]
     
-    audios = get_audio_files(folder, selected)
-    audios.append("larissa.aac")
+    # audios = get_audio_files(folder, selected)
+    # audios.append("larissa.aac")
 
     output = generate_speech(
-        audio_input=audios,
-        text="geladeira cachorro feliz triste cama música",
+        # audio_input="teste_larissa/phrases_all.ogg",
+        text="geladeira",
         speaker=speaker,
     )
