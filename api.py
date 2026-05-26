@@ -1,9 +1,9 @@
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import Response
 import io
-import soundfile as sf
-import numpy as np
+import torch
 import tempfile
+import soundfile as sf
 
 from services.audio_service import AudioService
 from services.embedding_service import EmbeddingService
@@ -14,40 +14,72 @@ app = FastAPI()
 
 audio_service = AudioService()
 tts_service = TTSService()
+
 embedding_service = EmbeddingService(
     tts_service.tts.synthesizer.tts_model
 )
 
+
+@app.post("/embedding")
+async def generate_embedding(
+    audio: UploadFile = File(...)
+):
+    audio_bytes = await audio.read()
+
+    suffix = "." + audio.filename.split(".")[-1]
+
+    with tempfile.NamedTemporaryFile(suffix=suffix) as tmp:
+        tmp.write(audio_bytes)
+        tmp.flush()
+
+        chunks = audio_service.preprocess(tmp.name)
+
+        embedding = embedding_service.create_embedding(chunks)
+
+        for key, value in embedding.items():
+            if hasattr(value, "cpu"):
+                embedding[key] = value.cpu()
+
+        buffer = io.BytesIO()
+        torch.save(embedding, buffer)
+        buffer.seek(0)
+
+        return Response(
+            content=buffer.read(),
+            media_type="application/octet-stream",
+            headers={
+                "Content-Disposition": "attachment; filename=embedding.pt"
+            }
+        )
+
+
 @app.post("/tts")
 async def tts(
     text: str = Form(...),
-    speaker: str = Form(...),
-    audio: UploadFile = File(None) 
+    embedding: UploadFile = File(...)
 ):
-    if audio is not None:
-        audio_bytes = await audio.read()
+    embedding_bytes = await embedding.read()
 
-        with open("temp_audio.wav", "wb") as f:
-            f.write(audio_bytes)
+    embedding = torch.load(
+        io.BytesIO(embedding_bytes),
+        map_location="cpu"
+    )
 
-        chunks = audio_service.preprocess("temp_audio.wav")
-        embedding = embedding_service.get_or_create(speaker, chunks)
+    output = tts_service.infer(text, embedding)
 
-    else:
-        embedding = embedding_service.get_or_create(speaker, None)
-
-    out = tts_service.infer(text, embedding)
-    wav = out["wav"] if isinstance(out, dict) else out
-
+    wav = output["wav"] if isinstance(output, dict) else output
     wav = audio_service.postprocess(wav)
 
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-        tts_service.tts.synthesizer.save_wav(wav, tmp.name)
+    wav_buffer = io.BytesIO()
 
-        with open(tmp.name, "rb") as f:
-            output_bytes = f.read()
+    sf.write(
+        wav_buffer,
+        wav,
+        samplerate=24000,
+        format="WAV"
+    )
 
     return Response(
-        content=output_bytes,
+        content=wav_buffer.getvalue(),
         media_type="audio/wav"
     )
