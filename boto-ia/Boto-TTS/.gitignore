@@ -1,0 +1,5 @@
+.venv/
+.venv/bin/
+__pycache__/
+*.pyc
+boto_tts_deps_linux_py311.zip
